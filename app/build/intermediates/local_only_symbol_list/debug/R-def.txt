@@ -1,0 +1,20 @@
+R_DEF: Internal format may change without notice
+local
+color black
+color purple_200
+color purple_500
+color purple_700
+color teal_200
+color teal_700
+color white
+drawable ic_launcher
+id btn_enable_admin
+id btn_enable_service
+id btn_install_extension
+layout activity_main
+string accessibility_service_description
+string app_name
+string device_admin_description
+style Theme.GuardianP
+xml accessibility_service_config
+xml device_admin_config

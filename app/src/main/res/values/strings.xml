@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">GuardianP</string>
+    <string name="accessibility_service_description">This service monitors browser content to prevent extension removal.</string>
+    <string name="device_admin_description">This permission prevents the app from being uninstalled easily.</string>
+</resources>
