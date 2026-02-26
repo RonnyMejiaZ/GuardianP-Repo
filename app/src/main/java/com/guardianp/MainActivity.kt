@@ -108,7 +108,7 @@ class MainActivity : Activity() {
 
     private fun checkForUpdates() {
         // REPLACE THIS URL with your own hosted version.json file
-        val updateUrl = "https://raw.githubusercontent.com/TuUsuario/TuRepo/main/version.json" 
+        val updateUrl = "https://raw.githubusercontent.com/RonnyMejiaZ/GuardianP-Repo/refs/heads/main/version.json" 
         
         Thread {
             try {
@@ -151,40 +151,68 @@ class MainActivity : Activity() {
     }
 
     private fun downloadAndInstallApk(url: String) {
-        val request = android.app.DownloadManager.Request(android.net.Uri.parse(url))
-            .setTitle("Downloading Update")
-            .setDescription("Updating GuardianP...")
-            .setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-            .setDestinationInExternalPublicDir(android.os.Environment.DIRECTORY_DOWNLOADS, "guardian_update.apk")
-            .setMimeType("application/vnd.android.package-archive")
+        try {
+            val request = android.app.DownloadManager.Request(android.net.Uri.parse(url))
+                .setTitle("Downloading Update")
+                .setDescription("Updating GuardianP...")
+                .setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                .setDestinationInExternalFilesDir(this, android.os.Environment.DIRECTORY_DOWNLOADS, "guardian_update.apk")
+                .setMimeType("application/vnd.android.package-archive")
 
-        val dm = getSystemService(Context.DOWNLOAD_SERVICE) as android.app.DownloadManager
-        val downloadId = dm.enqueue(request)
+            val dm = getSystemService(Context.DOWNLOAD_SERVICE) as android.app.DownloadManager
+            val downloadId = dm.enqueue(request)
 
-        Toast.makeText(this, "Downloading update...", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Downloading update...", Toast.LENGTH_SHORT).show()
 
-        // Register receiver for when download is complete
-        val onComplete = object : android.content.BroadcastReceiver() {
-            override fun onReceive(ctxt: Context, intent: Intent) {
-                val id = intent.getLongExtra(android.app.DownloadManager.EXTRA_DOWNLOAD_ID, -1)
-                if (downloadId == id) {
-                    installApk(id)
-                    unregisterReceiver(this)
+            // Register receiver for when download is complete
+            val onComplete = object : android.content.BroadcastReceiver() {
+                override fun onReceive(ctxt: Context, intent: Intent) {
+                    val id = intent.getLongExtra(android.app.DownloadManager.EXTRA_DOWNLOAD_ID, -1)
+                    if (downloadId == id) {
+                        installApk(id)
+                        try {
+                            unregisterReceiver(this)
+                        } catch (e: IllegalArgumentException) {
+                            // Receiver not registered
+                        }
+                    }
                 }
             }
+            
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(onComplete, android.content.IntentFilter(android.app.DownloadManager.ACTION_DOWNLOAD_COMPLETE), Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                registerReceiver(onComplete, android.content.IntentFilter(android.app.DownloadManager.ACTION_DOWNLOAD_COMPLETE))
+            }
+        } catch (e: Exception) {
+            Toast.makeText(this, "Error starting download: ${e.message}", Toast.LENGTH_LONG).show()
+            e.printStackTrace()
         }
-        registerReceiver(onComplete, android.content.IntentFilter(android.app.DownloadManager.ACTION_DOWNLOAD_COMPLETE))
     }
 
     private fun installApk(downloadId: Long) {
-        val dm = getSystemService(Context.DOWNLOAD_SERVICE) as android.app.DownloadManager
-        val uri = dm.getUriForDownloadedFile(downloadId)
-        
-        if (uri != null) {
-            val installIntent = Intent(Intent.ACTION_VIEW)
-            installIntent.setDataAndType(uri, "application/vnd.android.package-archive")
-            installIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            installIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            startActivity(installIntent)
+        try {
+            val file = java.io.File(getExternalFilesDir(android.os.Environment.DIRECTORY_DOWNLOADS), "guardian_update.apk")
+            
+            if (file.exists()) {
+                val uri = androidx.core.content.FileProvider.getUriForFile(
+                    this,
+                    "${applicationContext.packageName}.provider",
+                    file
+                )
+                
+                val installIntent = Intent(Intent.ACTION_VIEW)
+                installIntent.setDataAndType(uri, "application/vnd.android.package-archive")
+                installIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                installIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(installIntent)
+            } else {
+                Toast.makeText(this, "Update file not found!", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Toast.makeText(this, "Install failed: ${e.message}", Toast.LENGTH_LONG).show()
+            e.printStackTrace()
         }
     }
+
+}

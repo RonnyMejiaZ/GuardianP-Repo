@@ -18,7 +18,7 @@ class GuardianAccessibilityService : AccessibilityService() {
         "com.android.settings"       // Settings (for admin checks)
     )
 
-    // Keywords to detect strictly
+    // Keywords to detect strictly during clicks (e.g. menu items)
     private val FORBIDDEN_KEYWORDS = setOf(
         "Extensions",
         "Add-ons",
@@ -27,6 +27,15 @@ class GuardianAccessibilityService : AccessibilityService() {
         "InPrivate",   // Edge Private mode
         "Incognito",   // Chrome/Kiwi Private mode
         "Incógnito"    // Spanish Private mode
+    )
+
+    // Keywords that identify when we ARE actually inside the extensions/incognito page
+    // but are NOT typically in the menu itself.
+    private val PAGE_MARKERS = setOf(
+        "Developer mode", "Modo de desarrollador",
+        "Keyboard shortcuts", "Atajos de teclado",
+        "Get extensions", "Obtener extensiones",
+        "Chrome Web Store", "Personalizar Edge"
     )
 
     override fun onServiceConnected() {
@@ -78,33 +87,43 @@ class GuardianAccessibilityService : AccessibilityService() {
     }
 
     private fun handleBrowserEvent(event: AccessibilityEvent) {
-        val rootNode = rootInActiveWindow ?: return
-        
-        try {
-            // Scan the hierarchy for forbidden keywords
-            if (findForbiddenKeywordRecursive(rootNode)) {
-                Log.w(TAG, "Forbidden content detected! Performing Back Action.")
-                performGlobalAction(GLOBAL_ACTION_BACK)
+        when (event.eventType) {
+            AccessibilityEvent.TYPE_VIEW_CLICKED -> {
+                val source = event.source ?: return
+                try {
+                    if (findKeywordRecursive(source, FORBIDDEN_KEYWORDS)) {
+                        Log.w(TAG, "Forbidden item clicked! Closing app.")
+                        closeApp()
+                    }
+                } finally {
+                    source.recycle()
+                }
             }
-        } finally {
-            // Crucial: Recycle the root node to prevent memory leaks
-            rootNode.recycle()
+            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
+                val rootNode = rootInActiveWindow ?: return
+                try {
+                    // Check if we are physically on a forbidden page
+                    // We use specific page markers to avoid blocking menus that just list the keywords
+                    if (findKeywordRecursive(rootNode, PAGE_MARKERS)) {
+                        Log.w(TAG, "Forbidden page detected! Closing app.")
+                        closeApp()
+                    }
+                } finally {
+                    rootNode.recycle()
+                }
+            }
         }
     }
 
     /**
-     * Recursively scans the node hierarchy for forbidden text.
-     * Returns true if forbidden text is found.
-     * Note: This function does NOT recycle the 'node' passed to it. 
-     * The caller is responsible for recycling the 'node' if it obtained it directly.
-     * Use this pattern to traverse safely.
+     * Recursively scans the node hierarchy for any keyword in the provided set.
      */
-    private fun findForbiddenKeywordRecursive(node: AccessibilityNodeInfo): Boolean {
+    private fun findKeywordRecursive(node: AccessibilityNodeInfo, keywords: Set<String>): Boolean {
         // 1. Check current node text/desc
         val text = node.text?.toString()
         val desc = node.contentDescription?.toString()
         
-        if (containsForbiddenKeyword(text) || containsForbiddenKeyword(desc)) {
+        if (containsAnyKeyword(text, keywords) || containsAnyKeyword(desc, keywords)) {
             return true
         }
 
@@ -114,11 +133,10 @@ class GuardianAccessibilityService : AccessibilityService() {
             val child = node.getChild(i)
             if (child != null) {
                 try {
-                    if (findForbiddenKeywordRecursive(child)) {
+                    if (findKeywordRecursive(child, keywords)) {
                         return true
                     }
                 } finally {
-                    // Recycle child after we are done checking it and its subtree
                     child.recycle()
                 }
             }
@@ -127,11 +145,16 @@ class GuardianAccessibilityService : AccessibilityService() {
         return false
     }
 
-    private fun containsForbiddenKeyword(text: String?): Boolean {
+    private fun containsAnyKeyword(text: String?, keywords: Set<String>): Boolean {
         if (text.isNullOrBlank()) return false
-        return FORBIDDEN_KEYWORDS.any { keyword -> 
+        return keywords.any { keyword -> 
             text.contains(keyword, ignoreCase = true) 
         }
+    }
+
+    private fun closeApp() {
+        // Use GLOBAL_ACTION_HOME to "close" the app effectively
+        performGlobalAction(GLOBAL_ACTION_HOME)
     }
 
     override fun onInterrupt() {
