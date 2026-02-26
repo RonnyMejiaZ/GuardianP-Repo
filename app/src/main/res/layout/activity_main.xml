@@ -126,7 +126,7 @@
         </com.google.android.material.card.MaterialCardView>
 
         <!-- Browser Extension Card -->
-        <com.google.android.material.card.MaterialCardView
+        <!-- <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             app:cardBackgroundColor="#1E1E1E"
@@ -166,7 +166,7 @@
                     android:backgroundTint="#F57C00"
                     android:textColor="#FFFFFF"/>
             </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
+        </com.google.android.material.card.MaterialCardView> -->
 
     </LinearLayout>
 </ScrollView>
